@@ -46,8 +46,10 @@ opentxt/
   (`src/server/runtime.ts`) with SIGTERM/SIGINT disposal.
 - **Streaming**: the chat route is an Effect `Stream` end-to-end — upstream OpenAI SSE →
   `Stream.decodeText` → `splitLines` → schema-parsed deltas → re-framed SSE →
-  `Stream.toReadableStreamEffect`. Assistant persistence rides the stream's tail;
-  new-chat titles are generated concurrently and merged in (`Stream.merge`).
+  `Stream.toReadableStreamEffect`. Assistant persistence is a stream FINALIZER
+  (`Stream.ensuring`), so partial replies survive client disconnects and upstream
+  failures; new-chat titles run on a detached fiber (`Effect.forkDetach`) so the
+  DB write survives a hang-up, with the `title` frame merged in best-effort.
 - **Voice context bridge**: both voice modes seed the session with the current text
   chat (`serializeHistory` in the app). LiveKit mode carries it in participant token
   attributes (same mechanism as the original Python agent); Realtime mode bakes it
@@ -89,11 +91,11 @@ EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo run:ios   # dev build (no
 ## SSE protocol (`POST /api/chat`)
 
 ```
-data: {"type":"chat","chatId":"…"}    first frame; client learns the id of a new chat
+data: {"type":"chat","chatId":"…"}    always first; client learns the id of a new chat
 data: {"type":"delta","text":"…"}     streamed assistant text
-data: {"type":"title","title":"…"}    new chats only, arrives whenever ready
-data: {"type":"done"}                 assistant message persisted
-data: {"type":"error","message":"…"}
+data: {"type":"title","title":"…"}    new chats only, always before done
+data: {"type":"done"}                 TERMINAL frame — reply + title both finished; safe to close
+data: {"type":"error","message":"…"}  terminal frame on failure (no done)
 ```
 
 ## Deliberate scope cuts (vs the original)

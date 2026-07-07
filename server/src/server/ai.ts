@@ -146,9 +146,10 @@ export class Ai extends Context.Service<Ai>()("opentxt/Ai", {
             Effect.mapError((cause) => new AiError({ cause })),
           )
           const title = completion.choices[0]?.message.content
-          return title === null || title === undefined || title.length === 0
-            ? "New chat"
-            : title.trim().slice(0, 80)
+          // Collapse whitespace: a model that ignores the prompt and emits
+          // newlines must not produce a multi-line title.
+          const clean = (title ?? "").replace(/\s+/g, " ").trim().slice(0, 80)
+          return clean.length === 0 ? "New chat" : clean
         }),
 
       /** Transcribe an uploaded audio file (the in-chat mic button). */
