@@ -1,0 +1,51 @@
+import { type JobContext, ServerOptions, cli, defineAgent, voice } from "@livekit/agents"
+import * as openai from "@livekit/agents-plugin-openai"
+import { fileURLToPath } from "node:url"
+
+/**
+ * The LiveKit voice agent — the TypeScript replacement for the original
+ * Python `livekit-voice-agent` (Deepgram STT -> gpt-4o-mini -> Cartesia TTS
+ * -> Silero VAD -> turn detector). The OpenAI Realtime model (GA
+ * `gpt-realtime`) collapses that whole pipeline into one speech-to-speech
+ * session: no separate STT/TTS vendors, built-in turn detection.
+ *
+ * Context bridge: the server (`/api/voice/livekit`) bakes the user's current
+ * text-chat history into the participant token's `attributes.historyMessages`;
+ * we read it off the first participant and seed the session instructions —
+ * the same mechanism the Python agent used.
+ *
+ * NOTE: this worker is deliberately NOT wrapped in Effect — `cli.runApp`
+ * owns the process lifecycle (worker pool, job dispatch, signals), so an
+ * Effect runtime here would just fight it. Effect lives on the server.
+ */
+
+/** Keep in sync with `voiceInstructions` in opentxt/server/src/server/http.ts. */
+const instructions = (history: string): string =>
+  "You are opentxt's voice assistant. Your interface with the user is voice: " +
+  "keep responses short and conversational, and avoid unpronounceable punctuation." +
+  (history.length > 0 ? ` Previous chat history with this user: ${history}` : "")
+
+export default defineAgent({
+  entry: async (ctx: JobContext) => {
+    await ctx.connect()
+    const participant = await ctx.waitForParticipant()
+    const history = participant.attributes["historyMessages"] ?? ""
+
+    const agent = new voice.Agent({ instructions: instructions(history) })
+    const session = new voice.AgentSession({
+      // Defaults to model "gpt-realtime" (GA); voice matches the direct
+      // WebRTC mode so both voice paths sound identical.
+      llm: new openai.realtime.RealtimeModel({
+        voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
+        ...(process.env["OPENAI_REALTIME_MODEL"] !== undefined
+          ? { model: process.env["OPENAI_REALTIME_MODEL"] }
+          : {}),
+      }),
+    })
+
+    await session.start({ agent, room: ctx.room })
+    session.say("Hey! How can I help?")
+  },
+})
+
+cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }))

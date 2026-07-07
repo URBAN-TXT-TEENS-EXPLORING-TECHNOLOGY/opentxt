@@ -1,0 +1,23 @@
+{
+  "name": "opentxt-agent",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "pnpm build && node --env-file=.env dist/agent.js dev",
+    "start": "node --env-file=.env dist/agent.js start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.5.0",
+    "@livekit/agents-plugin-openai": "^1.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@10.17.1"
+}
