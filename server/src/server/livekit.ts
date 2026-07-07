@@ -41,18 +41,18 @@ export class LiveKitVoice extends Context.Service<LiveKitVoice>()("opentxt/LiveK
         )
         return yield* Effect.tryPromise({
           try: async () => {
-            const roomName = `voice_${randomUUID().slice(0, 8)}`
+            const roomName = `voice_${randomUUID()}`
             const participantName = `user_${userId.slice(0, 8)}`
             const at = new AccessToken(cfg.apiKey, Redacted.value(cfg.apiSecret), {
               identity: participantName,
               ttl: "15m",
               attributes: { historyMessages },
             })
+            // Narrow grant: audio-only voice flow — no data publishing.
             at.addGrant({
               room: roomName,
               roomJoin: true,
               canPublish: true,
-              canPublishData: true,
               canSubscribe: true,
             })
             return {

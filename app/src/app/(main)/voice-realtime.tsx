@@ -6,7 +6,6 @@ import type { OrbMode } from "@/components/voice-orb"
 import { VoiceOrb } from "@/components/voice-orb"
 import { api } from "@/lib/api"
 import { useAuthToken } from "@/lib/auth"
-import { serializeHistory } from "@/lib/history"
 import { RealtimeVoiceSession, type RealtimeStatus } from "@/lib/realtime"
 import { colors, spacing } from "@/lib/theme"
 
@@ -40,8 +39,7 @@ export default function VoiceRealtimeScreen() {
     session.current = s
     void (async () => {
       try {
-        const history = await serializeHistory(token, params.chat)
-        const secret = await api.voiceRealtime(token, history)
+        const secret = await api.voiceRealtime(token, params.chat)
         await s.start(secret.clientSecret)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))

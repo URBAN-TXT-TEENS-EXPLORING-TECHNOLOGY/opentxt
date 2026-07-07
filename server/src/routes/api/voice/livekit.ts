@@ -1,19 +1,21 @@
 import type { APIEvent } from "@solidjs/start/server"
 import { Effect, Schema } from "effect"
 import { Auth } from "~/server/auth"
-import { decodeBody, errorJson, json } from "~/server/http"
+import { Db } from "~/server/db"
+import { decodeBody, errorJson, json, serializeVoiceHistory } from "~/server/http"
 import { LiveKitVoice } from "~/server/livekit"
 import { runtime } from "~/server/runtime"
 
 const VoiceRequest = Schema.Struct({
-  /** Serialized current text-chat history — the voice agent's context bridge. */
-  historyMessages: Schema.optionalKey(Schema.String),
+  /** Chat to carry into the voice session. History is serialized SERVER-side. */
+  chatId: Schema.optionalKey(Schema.String),
 })
 
 /**
  * LiveKit voice mode: mint room connection details for the Expo client. The
  * agent worker (opentxt/agent) is dispatched to the room by LiveKit and reads
- * `historyMessages` from the participant attributes.
+ * the (server-serialized, ownership-checked) chat history from the
+ * participant attributes.
  */
 export async function POST(event: APIEvent): Promise<Response> {
   return runtime.runPromise(
@@ -21,8 +23,17 @@ export async function POST(event: APIEvent): Promise<Response> {
       const auth = yield* Auth
       const user = yield* auth.requireUser(event.request)
       const input = yield* decodeBody(event.request, VoiceRequest)
+      const db = yield* Db
+
+      let history = ""
+      if (input.chatId !== undefined) {
+        const chat = yield* db.getChat(input.chatId)
+        if (chat === null || chat.userId !== user.userId) return errorJson(404, "chat not found")
+        history = serializeVoiceHistory(yield* db.listMessages(chat.id))
+      }
+
       const lk = yield* LiveKitVoice
-      const details = yield* lk.connectionDetails(user.userId, input.historyMessages ?? "")
+      const details = yield* lk.connectionDetails(user.userId, history)
       return json(details)
     }).pipe(
       Effect.catchTag("Unauthorized", (e) => Effect.succeed(errorJson(401, e.reason))),

@@ -33,13 +33,12 @@ export default defineAgent({
 
     const agent = new voice.Agent({ instructions: instructions(history) })
     const session = new voice.AgentSession({
-      // Defaults to model "gpt-realtime" (GA); voice matches the direct
-      // WebRTC mode so both voice paths sound identical.
+      // Model + voice pinned EXPLICITLY to the same defaults as the server's
+      // direct-Realtime mode, so both voice paths behave identically and a
+      // plugin default bump can't silently diverge them.
       llm: new openai.realtime.RealtimeModel({
+        model: process.env["OPENAI_REALTIME_MODEL"] ?? "gpt-realtime",
         voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
-        ...(process.env["OPENAI_REALTIME_MODEL"] !== undefined
-          ? { model: process.env["OPENAI_REALTIME_MODEL"] }
-          : {}),
       }),
     })
 

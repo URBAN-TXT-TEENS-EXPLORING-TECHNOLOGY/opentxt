@@ -161,18 +161,20 @@ export const api = {
     return res.text
   },
 
-  voiceLiveKit: (token: string, historyMessages: string) =>
+  // Voice endpoints take a chatId: the SERVER serializes the history
+  // (ownership-checked) — the client can't inject fabricated context.
+  voiceLiveKit: (token: string, chatId: string | undefined) =>
     request("/api/voice/livekit", ConnectionDetails, {
       method: "POST",
       token,
-      body: JSON.stringify({ historyMessages }),
+      body: JSON.stringify(chatId !== undefined ? { chatId } : {}),
     }),
 
-  voiceRealtime: (token: string, historyMessages: string) =>
+  voiceRealtime: (token: string, chatId: string | undefined) =>
     request("/api/voice/realtime", RealtimeSecret, {
       method: "POST",
       token,
-      body: JSON.stringify({ historyMessages }),
+      body: JSON.stringify(chatId !== undefined ? { chatId } : {}),
     }),
 } as const
 

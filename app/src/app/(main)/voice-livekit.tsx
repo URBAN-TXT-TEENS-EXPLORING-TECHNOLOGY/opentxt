@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { VoiceOrb, type OrbMode } from "@/components/voice-orb"
 import { api, type ConnectionDetails } from "@/lib/api"
 import { useAuthToken } from "@/lib/auth"
-import { serializeHistory } from "@/lib/history"
 import { colors, spacing } from "@/lib/theme"
 
 /**
@@ -27,8 +26,7 @@ export default function VoiceLiveKitScreen() {
     void (async () => {
       try {
         await AudioSession.startAudioSession()
-        const history = await serializeHistory(token, params.chat)
-        const d = await api.voiceLiveKit(token, history)
+        const d = await api.voiceLiveKit(token, params.chat)
         if (active) setDetails(d)
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : String(e))

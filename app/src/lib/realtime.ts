@@ -1,3 +1,4 @@
+import { AudioSession } from "@livekit/react-native"
 import { mediaDevices, RTCPeerConnection, type MediaStream } from "@livekit/react-native-webrtc"
 import { Option, Schema } from "effect"
 
@@ -9,11 +10,16 @@ import { Option, Schema } from "effect"
  * the `oai-events` data channel. Session events use the GA names
  * (`response.output_audio_transcript.delta` etc — the Beta API is dead).
  *
- * Remote audio needs no handling: react-native-webrtc plays incoming audio
- * tracks automatically.
+ * react-native-webrtc plays incoming audio tracks automatically; we still
+ * hold a reference to the remote stream (dropping it can let the track be
+ * GC'd/stopped on some platforms) and run the platform audio session so the
+ * route (speaker/earpiece) is configured like the LiveKit path.
  */
 
 const OPENAI_CALLS_URL = "https://api.openai.com/v1/realtime/calls"
+
+/** Give ICE gathering a moment so the offer carries host candidates. */
+const ICE_GATHER_MAX_MS = 1000
 
 export type RealtimeStatus = "connecting" | "live" | "ended" | "error"
 
@@ -35,15 +41,37 @@ export type RealtimeCallbacks = {
   onTranscript: (delta: string, done: boolean) => void
 }
 
+const waitForIceGathering = (pc: RTCPeerConnection): Promise<void> =>
+  new Promise((resolve) => {
+    if (pc.iceGatheringState === "complete") {
+      resolve()
+      return
+    }
+    const timer = setTimeout(finish, ICE_GATHER_MAX_MS)
+    function finish() {
+      clearTimeout(timer)
+      pc.removeEventListener("icegatheringstatechange", onChange)
+      resolve()
+    }
+    function onChange() {
+      if (pc.iceGatheringState === "complete") finish()
+    }
+    pc.addEventListener("icegatheringstatechange", onChange)
+  })
+
 export class RealtimeVoiceSession {
   private pc: RTCPeerConnection | null = null
   private mic: MediaStream | null = null
+  /** Held so the remote audio track stays referenced while the call is live. */
+  remoteStream: MediaStream | null = null
+  private finished = false
 
   constructor(private readonly callbacks: RealtimeCallbacks) {}
 
   async start(clientSecret: string): Promise<void> {
     this.callbacks.onStatus("connecting")
     try {
+      await AudioSession.startAudioSession()
       const mic = await mediaDevices.getUserMedia({ audio: true })
       this.mic = mic
       const pc = new RTCPeerConnection()
@@ -52,23 +80,41 @@ export class RealtimeVoiceSession {
         pc.addTrack(track, mic)
       }
 
+      // Hold the remote stream; playback itself is automatic in RN WebRTC.
+      pc.addEventListener("track", (event) => {
+        this.remoteStream = event.streams[0] ?? null
+      })
+
+      // A dead transport must not leave the UI stuck on "live".
+      pc.addEventListener("connectionstatechange", () => {
+        if (pc.connectionState === "failed") this.fail()
+        if (pc.connectionState === "disconnected" || pc.connectionState === "closed") {
+          this.end()
+        }
+      })
+
       const channel = pc.createDataChannel("oai-events")
       channel.addEventListener("message", (event) => {
-        this.handleEvent(typeof event.data === "string" ? event.data : "")
+        if (typeof event.data !== "string") return
+        this.handleEvent(event.data)
       })
       channel.addEventListener("open", () => {
-        this.callbacks.onStatus("live")
+        if (!this.finished) this.callbacks.onStatus("live")
       })
+      channel.addEventListener("close", () => this.end())
+      channel.addEventListener("error", () => this.fail())
 
       const offer = await pc.createOffer({})
       await pc.setLocalDescription(offer)
+      await waitForIceGathering(pc)
+      const sdp = pc.localDescription?.sdp ?? offer.sdp
       const res = await fetch(OPENAI_CALLS_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${clientSecret}`,
           "Content-Type": "application/sdp",
         },
-        body: offer.sdp,
+        body: sdp,
       })
       if (!res.ok) {
         throw new Error(`realtime SDP exchange failed (${res.status})`)
@@ -76,8 +122,7 @@ export class RealtimeVoiceSession {
       const answer = await res.text()
       await pc.setRemoteDescription({ type: "answer", sdp: answer })
     } catch (e) {
-      this.callbacks.onStatus("error")
-      this.end()
+      this.fail()
       throw e
     }
   }
@@ -101,20 +146,36 @@ export class RealtimeVoiceSession {
       case "input_audio_buffer.speech_started":
         break
       case "error":
-        this.callbacks.onStatus("error")
+        this.fail()
         break
     }
   }
 
+  /** Terminal error: tear down without letting `end` overwrite the status. */
+  private fail(): void {
+    if (this.finished) return
+    this.finished = true
+    this.teardown()
+    this.callbacks.onStatus("error")
+  }
+
   end(): void {
+    if (this.finished) return
+    this.finished = true
+    this.teardown()
+    this.callbacks.onStatus("ended")
+  }
+
+  private teardown(): void {
     if (this.mic !== null) {
       for (const track of this.mic.getTracks()) track.stop()
       this.mic = null
     }
+    this.remoteStream = null
     if (this.pc !== null) {
       this.pc.close()
       this.pc = null
     }
-    this.callbacks.onStatus("ended")
+    void AudioSession.stopAudioSession()
   }
 }

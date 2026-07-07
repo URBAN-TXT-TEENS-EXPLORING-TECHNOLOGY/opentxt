@@ -50,10 +50,19 @@ opentxt/
   (`Stream.ensuring`), so partial replies survive client disconnects and upstream
   failures; new-chat titles run on a detached fiber (`Effect.forkDetach`) so the
   DB write survives a hang-up, with the `title` frame merged in best-effort.
-- **Voice context bridge**: both voice modes seed the session with the current text
-  chat (`serializeHistory` in the app). LiveKit mode carries it in participant token
-  attributes (same mechanism as the original Python agent); Realtime mode bakes it
-  into the session instructions at secret-mint time, server-side.
+- **Voice context bridge**: both voice modes seed the session with the chat's recent
+  messages. The client only sends a `chatId`; the SERVER ownership-checks it and
+  serializes the history (`serializeVoiceHistory`, 2400-char cap) — fabricated
+  "history" can't be injected into the assistant instructions, and the LiveKit JWT
+  stays small. LiveKit mode carries it in participant token attributes (same
+  mechanism as the original Python agent); Realtime mode bakes it into the session
+  instructions at secret-mint time.
+- **Security posture**: the OpenAI API key never leaves the server. The Realtime
+  ephemeral secret (`ek_…`, ~1min mint window, session-scoped config) and the LiveKit
+  room token (15-min TTL, room-scoped, audio-only grant, no data publishing) are
+  bearer credentials by design — a determined user can drive them outside the app,
+  bounded by their expiry. No per-user rate limiting yet; add it before opening
+  registration to strangers.
 
 ## Running it
 
@@ -110,7 +119,11 @@ a landing page; the product surface is the Expo app).
 
 - server: `vitest` 16/16 green; typecheck clean (TS strict + exactOptionalPropertyTypes
   + noUncheckedIndexedAccess); full curl QA — register → sign-in → streamed multi-turn
-  chat with context recall → history/detail/delete → 401 paths; SQLite rows inspected.
+  chat with context recall → history/detail/delete → 401 paths; SQLite rows inspected;
+  disconnect-mid-stream persists the partial reply (red→green); `/api/voice/realtime`
+  minted real ephemeral secrets against the live GA API (response shape verified:
+  flat `{value, expires_at, session}`); foreign chatId → 404. Two 4-model consensus
+  reviews (chat stream lifecycle; voice chain) — all actionable findings fixed.
 - agent: `tsc` clean; worker CLI boots. Live room QA requires LiveKit Cloud creds —
   not available in this workspace at build time.
 - app: `tsc` clean (same strict flags); Metro bundles (`expo export`); `expo prebuild`

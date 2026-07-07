@@ -42,10 +42,30 @@ export const SSE_HEADERS = {
 /**
  * Shared voice-assistant instructions. Used by BOTH voice modes so LiveKit
  * agent sessions and direct OpenAI Realtime sessions behave identically.
- * `history` is the serialized text-chat context the client hands over when
- * opening a voice session.
+ * `history` is the server-serialized text-chat context (see
+ * `serializeVoiceHistory`) — never client-supplied free text.
  */
 export const voiceInstructions = (history: string): string =>
   "You are opentxt's voice assistant. Your interface with the user is voice: " +
   "keep responses short and conversational, and avoid unpronounceable punctuation." +
   (history.length > 0 ? ` Previous chat history with this user: ${history}` : "")
+
+/**
+ * Cap keeps the serialized history comfortably inside a LiveKit token
+ * attribute (the token rides the connect URL — a bloated JWT can trip
+ * URL/header size limits) and inside the Realtime instructions budget.
+ */
+const VOICE_HISTORY_MAX_CHARS = 2400
+
+/**
+ * Serialize chat messages for the voice context bridge. Runs SERVER-SIDE
+ * from DB rows the caller already ownership-checked: the client only ever
+ * sends a chatId, so it cannot inject fabricated "history" into the
+ * assistant's instructions.
+ */
+export const serializeVoiceHistory = (
+  messages: ReadonlyArray<{ readonly role: string; readonly content: string }>,
+): string => {
+  const compact = messages.map((m) => `${m.role}: ${m.content}`).join("\n")
+  return compact.length > VOICE_HISTORY_MAX_CHARS ? compact.slice(-VOICE_HISTORY_MAX_CHARS) : compact
+}
