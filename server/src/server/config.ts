@@ -1,0 +1,45 @@
+import { Config, Redacted } from "effect"
+
+/**
+ * Configuration, read from the environment via Effect's default ConfigProvider.
+ * Secrets are `Config.redacted` so they can't be logged by accident. Missing
+ * required vars fail the owning layer with a ConfigError the first time the
+ * service is used.
+ */
+
+/** Signing secret for the mobile-auth JWTs (jose HS256). REQUIRED. */
+export const AuthConfig = Config.all({
+  secret: Config.redacted("AUTH_SECRET"),
+})
+
+/** SQLite database file. Defaults to a repo-local path; created on first use. */
+export const DatabaseConfig = Config.all({
+  path: Config.string("DATABASE_PATH").pipe(Config.withDefault("./data/opentxt.db")),
+})
+
+/**
+ * OpenAI config. One key powers text chat (chat completions), STT
+ * (transcriptions) and Realtime voice (ephemeral client secrets + the LiveKit
+ * agent's RealtimeModel).
+ */
+export const OpenAiConfig = Config.all({
+  apiKey: Config.redacted("OPENAI_API_KEY"),
+  baseUrl: Config.string("OPENAI_BASE_URL").pipe(Config.withDefault("https://api.openai.com/v1")),
+  chatModel: Config.string("OPENAI_CHAT_MODEL").pipe(Config.withDefault("gpt-4.1-mini")),
+  sttModel: Config.string("OPENAI_STT_MODEL").pipe(Config.withDefault("whisper-1")),
+  realtimeModel: Config.string("OPENAI_REALTIME_MODEL").pipe(Config.withDefault("gpt-realtime")),
+  realtimeVoice: Config.string("OPENAI_REALTIME_VOICE").pipe(Config.withDefault("marin")),
+})
+
+/**
+ * LiveKit server credentials — used ONLY to mint room access tokens for the
+ * Expo client. The agent worker (opentxt/agent) reads the same env names via
+ * the LiveKit CLI conventions.
+ */
+export const LiveKitConfig = Config.all({
+  url: Config.string("LIVEKIT_URL"),
+  apiKey: Config.string("LIVEKIT_API_KEY"),
+  apiSecret: Config.redacted("LIVEKIT_API_SECRET"),
+})
+
+export { Redacted }
