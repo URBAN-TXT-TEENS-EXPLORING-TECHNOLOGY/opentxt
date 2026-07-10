@@ -53,6 +53,12 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "opentxt attaches photos you pick to your chat messages."
+        }
+      ],
+      [
         "@livekit/react-native-expo-plugin",
         {
           "android": {

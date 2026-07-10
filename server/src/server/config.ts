@@ -26,6 +26,11 @@ export const OpenAiConfig = Config.all({
   apiKey: Config.redacted("OPENAI_API_KEY"),
   baseUrl: Config.string("OPENAI_BASE_URL").pipe(Config.withDefault("https://api.openai.com/v1")),
   chatModel: Config.string("OPENAI_CHAT_MODEL").pipe(Config.withDefault("gpt-4.1-mini")),
+  /** Comma-separated allowlist the model picker exposes; first is NOT the
+   *  default — `chatModel` is. A client-requested model must be in here. */
+  chatModels: Config.string("OPENAI_CHAT_MODELS").pipe(
+    Config.withDefault("gpt-4.1-mini,gpt-4.1"),
+  ),
   sttModel: Config.string("OPENAI_STT_MODEL").pipe(Config.withDefault("whisper-1")),
   realtimeModel: Config.string("OPENAI_REALTIME_MODEL").pipe(Config.withDefault("gpt-realtime")),
   realtimeVoice: Config.string("OPENAI_REALTIME_VOICE").pipe(Config.withDefault("marin")),

@@ -30,6 +30,7 @@ export async function GET(event: APIEvent): Promise<Response> {
           id: m.id,
           role: m.role,
           content: m.content,
+          attachments: m.attachments,
           createdAt: m.createdAt,
         })),
       })

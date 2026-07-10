@@ -47,13 +47,32 @@ const HistoryResponse = Schema.Struct({
   chats: Schema.Array(ChatSummary),
 })
 
+export const AttachmentRef = Schema.Struct({
+  id: Schema.String,
+  mime: Schema.String,
+})
+export type AttachmentRef = typeof AttachmentRef.Type
+
 export const Message = Schema.Struct({
   id: Schema.String,
   role: Schema.Literals(["user", "assistant"]),
   content: Schema.String,
+  attachments: Schema.NullOr(Schema.Array(AttachmentRef)),
   createdAt: Schema.Number,
 })
 export type Message = typeof Message.Type
+
+const UploadResponse = Schema.Struct({
+  id: Schema.String,
+  mime: Schema.String,
+  url: Schema.String,
+})
+export type UploadedMedia = typeof UploadResponse.Type
+
+const ModelsResponse = Schema.Struct({
+  default: Schema.String,
+  models: Schema.Array(Schema.String),
+})
 
 const ChatDetailResponse = Schema.Struct({
   chat: ChatSummary,
@@ -161,6 +180,15 @@ export const api = {
     return res.text
   },
 
+  /** Upload an image for multimodal chat; returns the media id + /m URL. */
+  upload: (token: string, file: { uri: string; name: string; type: string }) => {
+    const form = new FormData()
+    form.append("file", file as unknown as Blob)
+    return request("/api/files/upload", UploadResponse, { method: "POST", token, body: form })
+  },
+
+  models: (token: string) => request("/api/models", ModelsResponse, { token }),
+
   // Voice endpoints take a chatId: the SERVER serializes the history
   // (ownership-checked) — the client can't inject fabricated context.
   voiceLiveKit: (token: string, chatId: string | undefined) =>
@@ -184,7 +212,12 @@ export const api = {
  */
 export async function* streamChat(
   token: string,
-  input: { chatId?: string; message: string },
+  input: {
+    chatId?: string
+    message: string
+    attachments?: ReadonlyArray<string>
+    model?: string
+  },
 ): AsyncGenerator<ChatEvent> {
   const res = await expoFetch(`${BASE_URL}/api/chat`, {
     method: "POST",

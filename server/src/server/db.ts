@@ -33,20 +33,43 @@ export const ChatRow = Schema.Struct({
 })
 export type ChatRow = typeof ChatRow.Type
 
+/** Reference to an uploaded media item riding on a message. */
+export const AttachmentRef = Schema.Struct({
+  id: Schema.String,
+  mime: Schema.String,
+})
+export type AttachmentRef = typeof AttachmentRef.Type
+
 /**
  * A persisted chat message. This is the parse boundary for the `messages`
  * table: every write is encoded through this schema and every read decoded
  * through it (the workspace type-safety rule — a wrong shape is rejected at
- * the I/O boundary, not trusted into the app).
+ * the I/O boundary, not trusted into the app). `attachments` is stored as a
+ * JSON TEXT column; (de)serialization happens HERE, at the boundary.
  */
 export const MessageRow = Schema.Struct({
   id: Schema.String,
   chatId: Schema.String,
   role: Role,
   content: Schema.String,
+  attachments: Schema.NullOr(Schema.Array(AttachmentRef)),
   createdAt: Schema.Number,
 })
 export type MessageRow = typeof MessageRow.Type
+
+/**
+ * Uploaded media bytes (images for multimodal chat). Served publicly at
+ * /m/:id — the unguessable id IS the capability (mochi's pattern); writes
+ * and model-input reads are additionally ownership-checked via `userId`.
+ */
+export const MediaRow = Schema.Struct({
+  id: Schema.String,
+  userId: Schema.String,
+  mime: Schema.String,
+  data: Schema.instanceOf(Uint8Array),
+  createdAt: Schema.Number,
+})
+export type MediaRow = typeof MediaRow.Type
 
 const decodeRow = <S extends Schema.Top>(schema: S, row: unknown) =>
   Schema.decodeUnknownEffect(schema)(row).pipe(
@@ -97,6 +120,23 @@ export class Db extends Context.Service<Db>()("opentxt/Db", {
           )
         `)
         db.exec("CREATE INDEX IF NOT EXISTS messages_chat_created_idx ON messages (chat_id, created_at)")
+        // Idempotent column add for DBs created before attachments existed
+        // (no migration runner; the schema evolves in place, mochi-style).
+        const messageCols = db.prepare("PRAGMA table_info(messages)").all() as Array<{
+          name: string
+        }>
+        if (!messageCols.some((c) => c.name === "attachments")) {
+          db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT")
+        }
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS media (
+            id         TEXT    PRIMARY KEY,
+            user_id    TEXT    NOT NULL REFERENCES users(id),
+            mime       TEXT    NOT NULL,
+            data       BLOB    NOT NULL,
+            created_at INTEGER NOT NULL
+          )
+        `)
         return db
       },
       catch: (cause) => new DbError({ cause }),
@@ -194,9 +234,16 @@ export class Db extends Context.Service<Db>()("opentxt/Db", {
           yield* attempt(() =>
             sqlite
               .prepare(
-                "INSERT INTO messages (id, chat_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO messages (id, chat_id, role, content, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?)",
               )
-              .run(row.id, row.chatId, row.role, row.content, row.createdAt),
+              .run(
+                row.id,
+                row.chatId,
+                row.role,
+                row.content,
+                row.attachments === null ? null : JSON.stringify(row.attachments),
+                row.createdAt,
+              ),
           )
         }),
 
@@ -206,12 +253,71 @@ export class Db extends Context.Service<Db>()("opentxt/Db", {
           const rows = yield* attempt(() =>
             sqlite
               .prepare(
-                `SELECT id, chat_id AS chatId, role, content, created_at AS createdAt
+                `SELECT id, chat_id AS chatId, role, content, attachments, created_at AS createdAt
                  FROM messages WHERE chat_id = ? ORDER BY created_at ASC, id ASC`,
               )
               .all(chatId),
           )
-          return yield* decodeRow(Schema.Array(MessageRow), rows)
+          // The attachments TEXT column carries JSON; parse it BEFORE the
+          // schema decode so a corrupt value is rejected, not trusted.
+          const parsed = yield* attempt(() =>
+            rows.map((r) => {
+              const record = r as Record<string, unknown>
+              return {
+                ...record,
+                attachments:
+                  typeof record["attachments"] === "string"
+                    ? (JSON.parse(record["attachments"]) as unknown)
+                    : null,
+              }
+            }),
+          )
+          return yield* decodeRow(Schema.Array(MessageRow), parsed)
+        }),
+
+      /** Store uploaded media bytes (validated/encoded through `MediaRow`). */
+      insertMedia: (media: MediaRow): Effect.Effect<void, DbError> =>
+        Effect.gen(function* () {
+          const row = yield* Schema.encodeEffect(MediaRow)(media).pipe(
+            Effect.mapError((cause) => new DbError({ cause })),
+          )
+          yield* attempt(() =>
+            sqlite
+              .prepare(
+                "INSERT INTO media (id, user_id, mime, data, created_at) VALUES (?, ?, ?, ?, ?)",
+              )
+              .run(row.id, row.userId, row.mime, row.data, row.createdAt),
+          )
+        }),
+
+      /** Media by capability id (the /m/:id route — no user check by design). */
+      getMedia: (id: string): Effect.Effect<MediaRow | null, DbError> =>
+        Effect.gen(function* () {
+          const row = yield* attempt(() =>
+            sqlite
+              .prepare(
+                `SELECT id, user_id AS userId, mime, data, created_at AS createdAt
+                 FROM media WHERE id = ? LIMIT 1`,
+              )
+              .get(id),
+          )
+          if (row === undefined) return null
+          return yield* decodeRow(MediaRow, row)
+        }),
+
+      /** Media by id, ONLY if `userId` owns it (attaching + model input). */
+      getMediaOwned: (id: string, userId: string): Effect.Effect<MediaRow | null, DbError> =>
+        Effect.gen(function* () {
+          const row = yield* attempt(() =>
+            sqlite
+              .prepare(
+                `SELECT id, user_id AS userId, mime, data, created_at AS createdAt
+                 FROM media WHERE id = ? AND user_id = ? LIMIT 1`,
+              )
+              .get(id, userId),
+          )
+          if (row === undefined) return null
+          return yield* decodeRow(MediaRow, row)
         }),
     } as const
   }),

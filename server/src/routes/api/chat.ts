@@ -1,16 +1,22 @@
 import type { APIEvent } from "@solidjs/start/server"
 import { Effect, Fiber, Schema, Stream } from "effect"
 import { randomUUID } from "node:crypto"
-import { Ai, type ChatTurn } from "~/server/ai"
+import { Ai, type ChatTurn, type ContentPart } from "~/server/ai"
 import { Auth } from "~/server/auth"
-import { Db } from "~/server/db"
+import { Db, type DbError, type MessageRow } from "~/server/db"
 import { decodeBody, errorJson, SSE_HEADERS, sseFrame } from "~/server/http"
 import { runtime } from "~/server/runtime"
 
 const ChatRequest = Schema.Struct({
   chatId: Schema.optionalKey(Schema.String),
   message: Schema.String.check(Schema.isMinLength(1)),
+  /** ids from POST /api/files/upload — ownership is re-checked here. */
+  attachments: Schema.optionalKey(Schema.Array(Schema.String)),
+  /** Must be in the server's allowlist (GET /api/models). */
+  model: Schema.optionalKey(Schema.String),
 })
+
+const MAX_ATTACHMENTS = 4
 
 const SYSTEM_PROMPT =
   "You are opentxt, a friendly and concise assistant. Format answers in Markdown when it helps."
@@ -43,6 +49,22 @@ export async function POST(event: APIEvent): Promise<Response> {
       const db = yield* Db
       const ai = yield* Ai
 
+      if (input.model !== undefined && !ai.isAllowedModel(input.model)) {
+        return errorJson(400, `model not allowed: ${input.model}`)
+      }
+
+      // Attachments: re-check ownership of every id (an id from another
+      // user's upload must not leak into this user's model input).
+      if ((input.attachments?.length ?? 0) > MAX_ATTACHMENTS) {
+        return errorJson(400, `too many attachments (max ${MAX_ATTACHMENTS})`)
+      }
+      const attachmentRefs: Array<{ id: string; mime: string }> = []
+      for (const id of input.attachments ?? []) {
+        const media = yield* db.getMediaOwned(id, user.userId)
+        if (media === null) return errorJson(400, `unknown attachment: ${id}`)
+        attachmentRefs.push({ id: media.id, mime: media.mime })
+      }
+
       // Resolve the chat: verify ownership of an existing one, or create.
       let chatId: string
       let isNewChat: boolean
@@ -69,14 +91,36 @@ export async function POST(event: APIEvent): Promise<Response> {
         chatId,
         role: "user",
         content: input.message,
+        attachments: attachmentRefs.length > 0 ? attachmentRefs : null,
         createdAt: Date.now(),
       })
 
+      // History -> model turns. Messages with attachments become multimodal
+      // parts; image bytes are inlined as base64 data URLs (the server isn't
+      // publicly reachable by OpenAI, so capability URLs won't do).
       const history = yield* db.listMessages(chatId)
-      const turns: ReadonlyArray<ChatTurn> = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...history.map((m): ChatTurn => ({ role: m.role, content: m.content })),
-      ]
+      const toTurn = (m: MessageRow): Effect.Effect<ChatTurn, DbError> =>
+        Effect.gen(function* () {
+          if (m.attachments === null || m.attachments.length === 0) {
+            return { role: m.role, content: m.content }
+          }
+          const parts: Array<ContentPart> = [{ type: "text", text: m.content }]
+          for (const ref of m.attachments) {
+            const media = yield* db.getMediaOwned(ref.id, user.userId)
+            if (media === null) continue // deleted/foreign media: skip, don't fail the turn
+            parts.push({
+              type: "image_url",
+              image_url: {
+                url: `data:${media.mime};base64,${Buffer.from(media.data).toString("base64")}`,
+              },
+            })
+          }
+          return { role: m.role, content: parts }
+        })
+      const turns: Array<ChatTurn> = [{ role: "system", content: SYSTEM_PROMPT }]
+      for (const m of history) {
+        turns.push(yield* toTurn(m))
+      }
 
       // Deltas stream to the client and accumulate for the final persist. The
       // persist is a FINALIZER on the delta stream (not a concat continuation):
@@ -93,6 +137,7 @@ export async function POST(event: APIEvent): Promise<Response> {
                 chatId,
                 role: "assistant",
                 content,
+                attachments: null,
                 createdAt: Date.now(),
               })
               .pipe(
@@ -102,7 +147,7 @@ export async function POST(event: APIEvent): Promise<Response> {
                 ),
               )
       })
-      const deltas = ai.streamChat(turns).pipe(
+      const deltas = ai.streamChat(turns, input.model).pipe(
         Stream.tap((delta) => Effect.sync(() => collected.push(delta))),
         Stream.map((delta) => sseFrame({ type: "delta", text: delta })),
         Stream.ensuring(persistAssistant),

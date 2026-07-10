@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { api, streamChat } from "@/lib/api"
+import { api, streamChat, type AttachmentRef } from "@/lib/api"
 import { useAuthToken } from "@/lib/auth"
 
 export type UiMessage = {
   id: string
   role: "user" | "assistant"
   content: string
+  attachments: ReadonlyArray<AttachmentRef>
 }
 
 type ChatState = {
@@ -49,7 +50,12 @@ export function useChat(initialChatId: string | undefined) {
         setState({
           chatId: detail.chat.id,
           title: detail.chat.title,
-          messages: detail.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+          messages: detail.messages.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            attachments: m.attachments ?? [],
+          })),
           streaming: false,
           error: null,
         })
@@ -61,17 +67,30 @@ export function useChat(initialChatId: string | undefined) {
   }, [initialChatId, token])
 
   const send = useCallback(
-    async (text: string) => {
+    async (
+      text: string,
+      options?: { attachments?: ReadonlyArray<AttachmentRef>; model?: string },
+    ) => {
       const message = text.trim()
+      const attachments = options?.attachments ?? []
       if (message.length === 0) return
       const gen = generation.current
-      const userMessage: UiMessage = { id: `local-${Date.now()}`, role: "user", content: message }
+      const userMessage: UiMessage = {
+        id: `local-${Date.now()}`,
+        role: "user",
+        content: message,
+        attachments,
+      }
       const assistantId = `local-${Date.now()}-a`
       setState((s) => ({
         ...s,
         error: null,
         streaming: true,
-        messages: [...s.messages, userMessage, { id: assistantId, role: "assistant", content: "" }],
+        messages: [
+          ...s.messages,
+          userMessage,
+          { id: assistantId, role: "assistant", content: "", attachments: [] },
+        ],
       }))
 
       const applyAssistant = (f: (content: string) => string) => {
@@ -84,7 +103,12 @@ export function useChat(initialChatId: string | undefined) {
       }
 
       try {
-        const input = state.chatId !== null ? { chatId: state.chatId, message } : { message }
+        const input = {
+          message,
+          ...(state.chatId !== null ? { chatId: state.chatId } : {}),
+          ...(attachments.length > 0 ? { attachments: attachments.map((a) => a.id) } : {}),
+          ...(options?.model !== undefined ? { model: options.model } : {}),
+        }
         for await (const event of streamChat(token, input)) {
           if (generation.current !== gen) return
           switch (event.type) {

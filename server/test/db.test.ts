@@ -35,13 +35,23 @@ describe("Db", () => {
     const chat = { id: "c-1", userId: "u-1", title: "New chat", createdAt: 2000 }
     await withDb((db) => db.createChat(chat))
     await withDb((db) =>
-      db.insertMessage({ id: "m-2", chatId: "c-1", role: "assistant", content: "hi", createdAt: 3001 }),
+      db.insertMessage({ id: "m-2", chatId: "c-1", role: "assistant", content: "hi", attachments: null, createdAt: 3001 }),
     )
     await withDb((db) =>
-      db.insertMessage({ id: "m-1", chatId: "c-1", role: "user", content: "hello", createdAt: 3000 }),
+      db.insertMessage({
+        id: "m-1",
+        chatId: "c-1",
+        role: "user",
+        content: "hello",
+        attachments: [{ id: "att-1", mime: "image/png" }],
+        createdAt: 3000,
+      }),
     )
     const messages = await withDb((db) => db.listMessages("c-1"))
     expect(messages.map((m) => m.id)).toEqual(["m-1", "m-2"])
+    // attachments JSON round-trips through the TEXT column
+    expect(messages[0]?.attachments).toEqual([{ id: "att-1", mime: "image/png" }])
+    expect(messages[1]?.attachments).toBeNull()
   })
 
   it("rejects a role the schema does not allow (encode boundary)", async () => {
@@ -53,6 +63,7 @@ describe("Db", () => {
           // @ts-expect-error -- intentionally wrong: the boundary must reject it at runtime too
           role: "system",
           content: "x",
+          attachments: null,
           createdAt: 3002,
         }),
       ),
@@ -71,5 +82,18 @@ describe("Db", () => {
     await withDb((db) => db.deleteChat("c-1"))
     await expect(withDb((db) => db.getChat("c-1"))).resolves.toBeNull()
     await expect(withDb((db) => db.listMessages("c-1"))).resolves.toEqual([])
+  })
+
+  it("media round-trips bytes and enforces ownership on the owned lookup", async () => {
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+    await withDb((db) =>
+      db.insertMedia({ id: "med-1", userId: "u-1", mime: "image/png", data: bytes, createdAt: 5000 }),
+    )
+    const media = await withDb((db) => db.getMedia("med-1"))
+    expect(media?.mime).toBe("image/png")
+    expect(Array.from(media?.data ?? [])).toEqual([0x89, 0x50, 0x4e, 0x47])
+    // owned lookup: right owner hits, wrong owner is null (capability stays /m/:id only)
+    await expect(withDb((db) => db.getMediaOwned("med-1", "u-1"))).resolves.not.toBeNull()
+    await expect(withDb((db) => db.getMediaOwned("med-1", "someone-else"))).resolves.toBeNull()
   })
 })

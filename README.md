@@ -78,9 +78,15 @@ pnpm dev               # http://localhost:3000
 pnpm test && pnpm typecheck
 ```
 
-API: `POST /api/auth/register|token`, `POST /api/chat` (SSE), `GET /api/history`,
-`GET|DELETE /api/chat/:id`, `POST /api/stt`, `POST /api/voice/livekit`,
+API: `POST /api/auth/register|token`, `POST /api/chat` (SSE; optional
+`attachments` media ids + `model`), `GET /api/history`, `GET|DELETE /api/chat/:id`,
+`GET /api/models`, `POST /api/files/upload` (images ≤5MB), `GET /m/:id`
+(capability-URL media), `POST /api/stt`, `POST /api/voice/livekit`,
 `POST /api/voice/realtime`.
+
+A web chat client lives at `/chat` (Solid signals; same accounts, history, SSE,
+attachments, and model picker as the app — assistant text is plain-text on web
+for now).
 
 ### agent (LiveKit voice mode)
 
@@ -113,23 +119,28 @@ data: {"type":"error","message":"…"}  terminal frame on failure (no done)
 
 Vercel-template features NOT ported (add later if wanted): artifacts/documents
 (code/image/sheet editors), suggestions, message voting, Supermemory integration,
-Vercel Blob file uploads, resumable streams (Redis), guest auth, model picker
-(one model via `OPENAI_CHAT_MODEL`), web chat UI (the SolidStart app serves the API +
-a landing page; the product surface is the Expo app).
+resumable streams (Redis), guest auth.
 
 Ported beyond the first cut: markdown rendering in assistant bubbles
 (react-native-markdown-display, dark theme), mic mute in both voice modes,
-per-route rate limiting.
+per-route rate limiting, image attachments (SQLite-backed media + `/m/:id`
+capability URLs + multimodal model input as base64 data URLs), a model picker
+(`OPENAI_CHAT_MODELS` allowlist), and a web chat client at `/chat`.
 
 ## Verification status
 
-- server: `vitest` 16/16 green; typecheck clean (TS strict + exactOptionalPropertyTypes
+- server: `vitest` 22/22 green; typecheck clean (TS strict + exactOptionalPropertyTypes
   + noUncheckedIndexedAccess); full curl QA — register → sign-in → streamed multi-turn
-  chat with context recall → history/detail/delete → 401 paths; SQLite rows inspected;
-  disconnect-mid-stream persists the partial reply (red→green); `/api/voice/realtime`
-  minted real ephemeral secrets against the live GA API (response shape verified:
-  flat `{value, expires_at, session}`); foreign chatId → 404. Two 4-model consensus
-  reviews (chat stream lifecycle; voice chain) — all actionable findings fixed.
+  chat with context recall → history/detail/delete → 401 paths → 429 rate limits with
+  Retry-After; SQLite rows inspected; disconnect-mid-stream persists the partial reply
+  (red→green); `/api/voice/realtime` minted real ephemeral secrets against the live GA
+  API (response shape verified: flat `{value, expires_at, session}`); foreign chatId →
+  404. Multimodal proven end-to-end: uploaded PNG → `/m/:id` byte-identical → model
+  correctly described the image's content over the API. Two 4-model consensus reviews
+  (chat stream lifecycle; voice chain) — all actionable findings fixed.
+- web `/chat`: driven with a real browser (Playwright) — register/sign-in, streamed
+  markdown-bearing reply, sidebar + titles, model select, image upload rendered in
+  the bubble and correctly interpreted by the model (vision roundtrip on screen).
 - agent: `tsc` clean; worker CLI boots. Live room QA requires LiveKit Cloud creds —
   not available in this workspace at build time.
 - app: `tsc` clean (same strict flags); Metro bundles (`expo export`); `expo prebuild`
