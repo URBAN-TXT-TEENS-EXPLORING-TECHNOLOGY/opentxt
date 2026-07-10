@@ -2,8 +2,9 @@ import type { APIEvent } from "@solidjs/start/server"
 import { Effect, Schema } from "effect"
 import { Auth } from "~/server/auth"
 import { Db } from "~/server/db"
-import { decodeBody, errorJson, json, serializeVoiceHistory } from "~/server/http"
+import { decodeBody, errorJson, json, serializeVoiceHistory, tooManyRequests } from "~/server/http"
 import { LiveKitVoice } from "~/server/livekit"
+import { RateLimit } from "~/server/rate-limit"
 import { runtime } from "~/server/runtime"
 
 const VoiceRequest = Schema.Struct({
@@ -22,6 +23,9 @@ export async function POST(event: APIEvent): Promise<Response> {
     Effect.gen(function* () {
       const auth = yield* Auth
       const user = yield* auth.requireUser(event.request)
+      const rl = yield* RateLimit
+      // Voice sessions cost real money; cap mints per user.
+      yield* rl.hit(`voice:${user.userId}`, 10, 5 * 60_000)
       const input = yield* decodeBody(event.request, VoiceRequest)
       const db = yield* Db
 
@@ -36,6 +40,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       const details = yield* lk.connectionDetails(user.userId, history)
       return json(details)
     }).pipe(
+      Effect.catchTag("RateLimited", (e) => Effect.succeed(tooManyRequests(e.retryAfterMs))),
       Effect.catchTag("Unauthorized", (e) => Effect.succeed(errorJson(401, e.reason))),
       Effect.catchTag("BadRequest", (e) => Effect.succeed(errorJson(400, e.reason))),
       Effect.catch((e) =>

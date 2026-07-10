@@ -2,7 +2,8 @@ import type { APIEvent } from "@solidjs/start/server"
 import { Effect, Schema } from "effect"
 import { Auth } from "~/server/auth"
 import { Db } from "~/server/db"
-import { decodeBody, errorJson, json } from "~/server/http"
+import { decodeBody, errorJson, json, tooManyRequests } from "~/server/http"
+import { clientAddress, RateLimit } from "~/server/rate-limit"
 import { runtime } from "~/server/runtime"
 
 const TokenRequest = Schema.Struct({
@@ -14,6 +15,9 @@ const TokenRequest = Schema.Struct({
 export async function POST(event: APIEvent): Promise<Response> {
   return runtime.runPromise(
     Effect.gen(function* () {
+      const rl = yield* RateLimit
+      // Brute-force guard: per-IP, generous enough for fat-fingered retries.
+      yield* rl.hit(`token:${clientAddress(event.request)}`, 10, 5 * 60_000)
       const input = yield* decodeBody(event.request, TokenRequest)
       const auth = yield* Auth
       const db = yield* Db
@@ -26,6 +30,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       const token = yield* auth.signToken({ userId: user.id, email: user.email })
       return json({ token, user: { id: user.id, email: user.email } })
     }).pipe(
+      Effect.catchTag("RateLimited", (e) => Effect.succeed(tooManyRequests(e.retryAfterMs))),
       Effect.catchTag("BadRequest", (e) => Effect.succeed(errorJson(400, e.reason))),
       Effect.catch((e) =>
         Effect.logError(`token failed: ${String(e)}`).pipe(

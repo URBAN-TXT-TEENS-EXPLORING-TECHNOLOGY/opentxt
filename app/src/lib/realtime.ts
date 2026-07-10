@@ -151,6 +151,14 @@ export class RealtimeVoiceSession {
     }
   }
 
+  /** Mute = disable the local audio track (keeps the transport alive). */
+  setMuted(muted: boolean): void {
+    if (this.mic === null) return
+    for (const track of this.mic.getAudioTracks()) {
+      track.enabled = !muted
+    }
+  }
+
   /** Terminal error: tear down without letting `end` overwrite the status. */
   private fail(): void {
     if (this.finished) return

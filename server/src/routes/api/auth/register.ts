@@ -3,7 +3,8 @@ import { Effect, Schema } from "effect"
 import { randomUUID } from "node:crypto"
 import { Auth } from "~/server/auth"
 import { Db } from "~/server/db"
-import { decodeBody, errorJson, json } from "~/server/http"
+import { decodeBody, errorJson, json, tooManyRequests } from "~/server/http"
+import { clientAddress, RateLimit } from "~/server/rate-limit"
 import { runtime } from "~/server/runtime"
 
 const RegisterRequest = Schema.Struct({
@@ -15,6 +16,8 @@ const RegisterRequest = Schema.Struct({
 export async function POST(event: APIEvent): Promise<Response> {
   return runtime.runPromise(
     Effect.gen(function* () {
+      const rl = yield* RateLimit
+      yield* rl.hit(`register:${clientAddress(event.request)}`, 5, 15 * 60_000)
       const input = yield* decodeBody(event.request, RegisterRequest)
       const auth = yield* Auth
       const db = yield* Db
@@ -32,6 +35,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       const token = yield* auth.signToken({ userId: user.id, email: user.email })
       return json({ token, user: { id: user.id, email: user.email } }, 201)
     }).pipe(
+      Effect.catchTag("RateLimited", (e) => Effect.succeed(tooManyRequests(e.retryAfterMs))),
       Effect.catchTag("BadRequest", (e) => Effect.succeed(errorJson(400, e.reason))),
       Effect.catch((e) =>
         Effect.logError(`register failed: ${String(e)}`).pipe(

@@ -61,8 +61,10 @@ opentxt/
   ephemeral secret (`ek_…`, ~1min mint window, session-scoped config) and the LiveKit
   room token (15-min TTL, room-scoped, audio-only grant, no data publishing) are
   bearer credentials by design — a determined user can drive them outside the app,
-  bounded by their expiry. No per-user rate limiting yet; add it before opening
-  registration to strangers.
+  bounded by their expiry. Rate limiting (in-memory sliding window, `RateLimit`
+  service): register 5/15min per IP, sign-in 10/5min per IP, voice mints 10/5min
+  per user (shared budget across both modes), 429 + Retry-After. Single-process
+  by design — swap for a shared store if this ever runs multi-instance.
 
 ## Running it
 
@@ -114,6 +116,10 @@ Vercel-template features NOT ported (add later if wanted): artifacts/documents
 Vercel Blob file uploads, resumable streams (Redis), guest auth, model picker
 (one model via `OPENAI_CHAT_MODEL`), web chat UI (the SolidStart app serves the API +
 a landing page; the product surface is the Expo app).
+
+Ported beyond the first cut: markdown rendering in assistant bubbles
+(react-native-markdown-display, dark theme), mic mute in both voice modes,
+per-route rate limiting.
 
 ## Verification status
 

@@ -14,6 +14,16 @@ export const json = (data: unknown, status = 200): Response =>
 export const errorJson = (status: number, message: string): Response =>
   json({ error: message }, status)
 
+/** 429 with a Retry-After header (seconds, rounded up). */
+export const tooManyRequests = (retryAfterMs: number): Response =>
+  new Response(JSON.stringify({ error: "too many requests" }), {
+    status: 429,
+    headers: {
+      "Content-Type": "application/json",
+      "Retry-After": String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+    },
+  })
+
 /** Read + decode a JSON request body through a Schema (parse, don't validate). */
 export const decodeBody = <S extends Schema.Top>(
   request: Request,

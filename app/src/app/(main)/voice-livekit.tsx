@@ -1,4 +1,4 @@
-import { useVoiceAssistant } from "@livekit/components-react"
+import { useLocalParticipant, useVoiceAssistant } from "@livekit/components-react"
 import { AudioSession, LiveKitRoom } from "@livekit/react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { router, useLocalSearchParams } from "expo-router"
@@ -57,13 +57,35 @@ export default function VoiceLiveKitScreen() {
 
 function AssistantOrb() {
   const { state } = useVoiceAssistant()
+  const { isMicrophoneEnabled, localParticipant } = useLocalParticipant()
   const mode: OrbMode =
     state === "listening" || state === "thinking" || state === "speaking" ? state : "idle"
   return (
     <>
       <VoiceOrb mode={mode} />
       <Text style={styles.state}>{state}</Text>
+      <MuteButton
+        muted={!isMicrophoneEnabled}
+        onToggle={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+      />
     </>
+  )
+}
+
+/** Shared mic toggle for both voice screens. */
+export function MuteButton(props: { muted: boolean; onToggle: () => void }) {
+  return (
+    <Pressable
+      style={[styles.mute, props.muted && styles.muteActive]}
+      onPress={props.onToggle}
+    >
+      <Ionicons
+        name={props.muted ? "mic-off" : "mic"}
+        size={20}
+        color={props.muted ? colors.danger : colors.text}
+      />
+      <Text style={styles.muteText}>{props.muted ? "Unmute" : "Mute"}</Text>
+    </Pressable>
   )
 }
 
@@ -128,6 +150,24 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+  },
+  mute: {
+    alignItems: "center",
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  muteActive: {
+    borderColor: colors.danger,
+  },
+  muteText: {
+    color: colors.text,
+    fontSize: 13,
   },
   endText: {
     color: colors.text,

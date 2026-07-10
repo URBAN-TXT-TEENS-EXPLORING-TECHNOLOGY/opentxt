@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from "expo-router"
 import { useEffect, useRef, useState } from "react"
 import { StyleSheet, Text } from "react-native"
-import { Shell } from "./voice-livekit"
+import { MuteButton, Shell } from "./voice-livekit"
 import type { OrbMode } from "@/components/voice-orb"
 import { VoiceOrb } from "@/components/voice-orb"
 import { api } from "@/lib/api"
@@ -20,6 +20,7 @@ export default function VoiceRealtimeScreen() {
   const params = useLocalSearchParams<{ chat?: string }>()
   const [status, setStatus] = useState<RealtimeStatus>("connecting")
   const [speaking, setSpeaking] = useState(false)
+  const [muted, setMuted] = useState(false)
   const [transcript, setTranscript] = useState("")
   const [error, setError] = useState<string | null>(null)
   const session = useRef<RealtimeVoiceSession | null>(null)
@@ -55,9 +56,19 @@ export default function VoiceRealtimeScreen() {
     status === "connecting" ? "thinking" : status !== "live" ? "idle" : speaking ? "speaking" : "listening"
 
   return (
-    <Shell error={error}>
+      <Shell error={error}>
       <VoiceOrb mode={mode} />
       <Text style={styles.status}>{status === "live" ? (speaking ? "speaking" : "listening") : status}</Text>
+      {status === "live" && (
+        <MuteButton
+          muted={muted}
+          onToggle={() => {
+            const next = !muted
+            session.current?.setMuted(next)
+            setMuted(next)
+          }}
+        />
+      )}
       {transcript.length > 0 && (
         <Text numberOfLines={4} style={styles.transcript}>
           {transcript}

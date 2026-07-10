@@ -4,6 +4,7 @@ import { Ai } from "./ai"
 import { Auth } from "./auth"
 import { Db } from "./db"
 import { LiveKitVoice } from "./livekit"
+import { RateLimit } from "./rate-limit"
 import { OpenAiRealtime } from "./realtime"
 
 /**
@@ -18,6 +19,7 @@ const AppLayer = Layer.mergeAll(
   Ai.layer,
   LiveKitVoice.layer,
   OpenAiRealtime.layer,
+  RateLimit.layer,
 )
 
 export const runtime = ManagedRuntime.make(AppLayer)

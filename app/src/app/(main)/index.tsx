@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Markdown } from "@/components/markdown"
 import { useChat, type UiMessage } from "@/hooks/use-chat"
 import { useVoiceInput } from "@/hooks/use-voice-input"
 import { colors, radius, spacing } from "@/lib/theme"
@@ -124,8 +125,10 @@ function Bubble(props: { message: UiMessage; streaming: boolean }) {
     <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
       {pending ? (
         <ActivityIndicator size="small" color={colors.textDim} />
-      ) : (
+      ) : isUser ? (
         <Text style={styles.bubbleText}>{props.message.content}</Text>
+      ) : (
+        <Markdown>{props.message.content}</Markdown>
       )}
     </View>
   )
