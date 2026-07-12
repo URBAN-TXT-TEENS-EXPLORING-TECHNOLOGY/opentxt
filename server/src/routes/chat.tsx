@@ -1,13 +1,20 @@
+import DOMPurify from "dompurify"
 import { Option, Schema } from "effect"
+import { marked } from "marked"
 import { createEffect, createSignal, For, onMount, Show } from "solid-js"
 import "./chat.css"
 
 /**
  * Web chat — a Solid-reactive client for the same API the Expo app uses
  * (Bearer JWT + SSE). Serves as the browser QA surface; the mobile app is
- * the product. Assistant text renders as plain text (no markdown lib on
- * web yet — deliberate).
+ * the product. Assistant markdown renders via marked + DOMPurify (model
+ * output is untrusted — prompt injection could smuggle HTML).
  */
+
+/** Assistant markdown -> sanitized HTML. Client-only (DOMPurify needs a DOM);
+ *  messages only exist client-side, so SSR never calls this. */
+const renderMarkdown = (content: string): string =>
+  DOMPurify.sanitize(marked.parse(content, { async: false }))
 
 // ---- schemas (parse, don't trust — same boundary rule as the app) ----
 
@@ -423,7 +430,9 @@ export default function ChatPage() {
                           </For>
                         </div>
                       </Show>
-                      {m.content}
+                      <Show when={m.role === "assistant"} fallback={m.content}>
+                        <div class="md" innerHTML={renderMarkdown(m.content)} />
+                      </Show>
                     </div>
                   )}
                 </For>

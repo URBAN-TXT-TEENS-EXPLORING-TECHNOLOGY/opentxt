@@ -1,0 +1,1 @@
+import{x as e,z as t}from"./web-jsQWF9xa.js";var a=t('<main style="font-family:system-ui, sans-serif;padding:2rem"><h1>opentxt</h1><p>Effect-native chat + voice backend. The product surface is the Expo app (<code>opentxt/app</code>); this server exposes the API under <code>/api/*</code>.');function p(){return e(a)}export{p as default};

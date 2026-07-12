@@ -3,12 +3,12 @@ import { Effect, Schema } from "effect"
 import { randomUUID } from "node:crypto"
 import { Auth } from "~/server/auth"
 import { Db } from "~/server/db"
-import { decodeBody, errorJson, json, tooManyRequests } from "~/server/http"
+import { decodeBody, Email, errorJson, json, tooManyRequests } from "~/server/http"
 import { clientAddress, RateLimit } from "~/server/rate-limit"
 import { runtime } from "~/server/runtime"
 
 const RegisterRequest = Schema.Struct({
-  email: Schema.String.check(Schema.isMinLength(3)),
+  email: Email,
   password: Schema.String.check(Schema.isMinLength(8)),
 })
 

@@ -93,6 +93,33 @@ body {
 .msg .imgs img { border-radius: 8px; height: 140px; object-fit: cover; width: 140px; }
 .msg.pending::after { content: "…"; color: var(--text-dim); }
 
+/* rendered assistant markdown */
+.md { white-space: normal; }
+.md > *:first-child { margin-top: 0; }
+.md > *:last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md pre, .md blockquote, .md table { margin: 0 0 8px; }
+.md ul, .md ol { padding-left: 22px; }
+.md li { margin-bottom: 3px; }
+.md h1, .md h2, .md h3 { margin: 4px 0 8px; line-height: 1.25; }
+.md h1 { font-size: 20px; } .md h2 { font-size: 17px; } .md h3 { font-size: 15px; }
+.md a { color: var(--accent); }
+.md code {
+  background: var(--surface-raised); border-radius: 4px; color: var(--accent);
+  font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 1px 5px;
+}
+.md pre {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  overflow-x: auto; padding: 10px 12px;
+}
+.md pre code { background: none; color: var(--text); padding: 0; }
+.md blockquote {
+  background: var(--surface-raised); border-left: 3px solid var(--accent);
+  border-radius: 6px; margin-left: 0; padding: 6px 12px;
+}
+.md table { border-collapse: collapse; }
+.md th, .md td { border: 1px solid var(--border); padding: 5px 9px; }
+.md hr { border: 0; border-top: 1px solid var(--border); }
+
 .staged { display: flex; gap: 8px; padding: 0 18px 8px; }
 .staged .item { border-radius: 8px; height: 56px; overflow: hidden; position: relative; width: 56px; }
 .staged img { height: 100%; object-fit: cover; width: 100%; }

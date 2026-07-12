@@ -1,5 +1,13 @@
 import { Data, Effect, Schema } from "effect"
 
+/**
+ * Pragmatic email shape: liberal local part, sane domain (letters/digits/
+ * dots/hyphens + a TLD). Caught red-handed accepting `x@;y.z` during sim QA.
+ */
+export const Email = Schema.String.check(
+  Schema.isPattern(/^[^\s@]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}$/),
+)
+
 /** A request body that failed to parse or decode. Routes map this to a 400. */
 export class BadRequest extends Data.TaggedError("BadRequest")<{
   readonly reason: string
