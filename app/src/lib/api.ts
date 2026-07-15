@@ -160,6 +160,13 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  /** One-tap throwaway account (can't be re-entered after sign-out). */
+  guest: () =>
+    request("/api/auth/guest", AuthResponse, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
   history: (token: string) =>
     request("/api/history", HistoryResponse, { token }).then((r) => r.chats),
 
@@ -218,6 +225,7 @@ export async function* streamChat(
     attachments?: ReadonlyArray<string>
     model?: string
   },
+  signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
   const res = await expoFetch(`${BASE_URL}/api/chat`, {
     method: "POST",
@@ -227,6 +235,7 @@ export async function* streamChat(
       Accept: "text/event-stream",
     },
     body: JSON.stringify(input),
+    ...(signal !== undefined ? { signal } : {}),
   })
   if (!res.ok || res.body === null) {
     throw new ApiError(res.status, `chat stream failed (${res.status})`)

@@ -17,6 +17,7 @@ type Props = {
   subtitle: string
   actionLabel: string
   onSubmit: (email: string, password: string) => Promise<void>
+  onGuest?: (() => Promise<void>) | undefined
   footerText: string
   footerLinkLabel: string
   footerHref: Href
@@ -91,6 +92,24 @@ export function AuthForm(props: Props) {
             <Text style={styles.footerLink}>{props.footerLinkLabel}</Text>
           </Link>
         </View>
+
+        {props.onGuest !== undefined && (
+          <Pressable
+            style={styles.guest}
+            disabled={busy}
+            onPress={() => {
+              if (busy) return
+              setBusy(true)
+              setError(null)
+              props
+                .onGuest?.()
+                .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+                .finally(() => setBusy(false))
+            }}
+          >
+            <Text style={styles.guestText}>Continue as guest</Text>
+          </Pressable>
+        )}
       </View>
     </KeyboardAvoidingView>
   )
@@ -156,5 +175,14 @@ const styles = StyleSheet.create({
   footerLink: {
     color: colors.accent,
     fontWeight: "600",
+  },
+  guest: {
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+  },
+  guestText: {
+    color: colors.textDim,
+    fontSize: 14,
+    textDecorationLine: "underline",
   },
 })

@@ -117,15 +117,23 @@ data: {"type":"error","message":"…"}  terminal frame on failure (no done)
 
 ## Deliberate scope cuts (vs the original)
 
-Vercel-template features NOT ported (add later if wanted): artifacts/documents
-(code/image/sheet editors), suggestions, message voting, Supermemory integration,
-resumable streams (Redis), guest auth.
+Vercel-template features NOT ported, deliberately: artifacts/documents
+(code/image/sheet editors) + suggestions (an editor product of their own),
+message voting (no product surface for it here), Supermemory (proprietary
+service), resumable streams (Redis machinery; our `Stream.ensuring` persist
+already guarantees no data loss on disconnect — resume-a-live-stream can come
+when there's demand).
 
 Ported beyond the first cut: markdown rendering in assistant bubbles
-(react-native-markdown-display, dark theme), mic mute in both voice modes,
-per-route rate limiting, image attachments (SQLite-backed media + `/m/:id`
-capability URLs + multimodal model input as base64 data URLs), a model picker
-(`OPENAI_CHAT_MODELS` allowlist), and a web chat client at `/chat`.
+(react-native-markdown-display, dark theme) and on web (marked + DOMPurify),
+mic mute in both voice modes, per-route rate limiting, image attachments
+(SQLite-backed media + `/m/:id` capability URLs + multimodal model input as
+base64 data URLs), a model picker (`OPENAI_CHAT_MODELS` allowlist), a web chat
+client at `/chat`, guest sign-in (`POST /api/auth/guest`), stop-generation
+(client abort; the finalizer persists the partial), and the voice provider
+switch (`provider: "openai" | "google"` on `/api/voice/livekit` → agent picks
+OpenAI Realtime or Gemini Live via `@livekit/agents-plugin-google`; Gemini
+pinned to 2.5-native-audio until agents-js#1197 — live QA pending keys).
 
 ## Verification status
 

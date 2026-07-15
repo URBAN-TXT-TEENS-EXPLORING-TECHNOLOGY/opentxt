@@ -98,6 +98,7 @@ export default function ChatPage() {
 
   let messagesEl: HTMLDivElement | undefined
   let fileEl: HTMLInputElement | undefined
+  let aborter: AbortController | null = null
 
   onMount(() => {
     setToken(localStorage.getItem(TOKEN_KEY))
@@ -162,6 +163,24 @@ export default function ChatPage() {
             ? String((json as { error: unknown }).error)
             : `failed (${res.status})`
         setAuthError(message)
+        return
+      }
+      localStorage.setItem(TOKEN_KEY, parsed.value.token)
+      setToken(parsed.value.token)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const guestAuth = async () => {
+    if (authBusy()) return
+    setAuthBusy(true)
+    setAuthError(null)
+    try {
+      const res = await fetch("/api/auth/guest", { method: "POST" })
+      const parsed = decodeAuth(await res.json().catch(() => null))
+      if (!res.ok || Option.isNone(parsed)) {
+        setAuthError(`guest sign-in failed (${res.status})`)
         return
       }
       localStorage.setItem(TOKEN_KEY, parsed.value.token)
@@ -249,6 +268,8 @@ export default function ChatPage() {
         ms.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)),
       )
 
+    const controller = new AbortController()
+    aborter = controller
     try {
       const res = await fetch("/api/chat", {
         ...authed({ method: "POST" }),
@@ -263,6 +284,7 @@ export default function ChatPage() {
           ...(attachments.length > 0 ? { attachments: attachments.map((a) => a.id) } : {}),
           ...(model() !== null ? { model: model() } : {}),
         }),
+        signal: controller.signal,
       })
       if (!res.ok || res.body === null) {
         setChatError(`chat failed (${res.status})`)
@@ -310,12 +332,18 @@ export default function ChatPage() {
         }
       }
     } catch (e) {
-      setChatError(e instanceof Error ? e.message : String(e))
+      // User-initiated stop is not an error; the server persists the partial.
+      if (!controller.signal.aborted) {
+        setChatError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
+      aborter = null
       setStreaming(false)
       void loadHistory()
     }
   }
+
+  const stop = () => aborter?.abort()
 
   return (
     <Show when={ready()}>
@@ -354,6 +382,9 @@ export default function ChatPage() {
                 onClick={() => setAuthMode(authMode() === "signin" ? "signup" : "signin")}
               >
                 {authMode() === "signin" ? "No account? Sign up" : "Have an account? Sign in"}
+              </button>
+              <button type="button" class="switch" onClick={() => void guestAuth()}>
+                Continue as guest
               </button>
             </form>
           </div>
@@ -487,13 +518,22 @@ export default function ChatPage() {
                   }
                 }}
               />
-              <button
-                class="send"
-                disabled={streaming() || uploading() || draft().trim().length === 0}
-                onClick={() => void send()}
+              <Show
+                when={streaming()}
+                fallback={
+                  <button
+                    class="send"
+                    disabled={uploading() || draft().trim().length === 0}
+                    onClick={() => void send()}
+                  >
+                    ↑
+                  </button>
+                }
               >
-                ↑
-              </button>
+                <button class="stop" title="stop generating" onClick={stop}>
+                  ■
+                </button>
+              </Show>
             </div>
           </main>
         </div>

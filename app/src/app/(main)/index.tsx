@@ -190,14 +190,20 @@ export default function ChatScreen() {
             />
           )}
         </Pressable>
-        <Pressable
-          hitSlop={8}
-          style={[styles.iconButton, styles.sendButton]}
-          onPress={sendDraft}
-          disabled={chat.streaming || uploading || draft.trim().length === 0}
-        >
-          <Ionicons name="arrow-up" size={22} color={colors.accentText} />
-        </Pressable>
+        {chat.streaming ? (
+          <Pressable hitSlop={8} style={[styles.iconButton, styles.stopButton]} onPress={chat.stop}>
+            <Ionicons name="stop" size={18} color={colors.text} />
+          </Pressable>
+        ) : (
+          <Pressable
+            hitSlop={8}
+            style={[styles.iconButton, styles.sendButton]}
+            onPress={sendDraft}
+            disabled={uploading || draft.trim().length === 0}
+          >
+            <Ionicons name="arrow-up" size={22} color={colors.accentText} />
+          </Pressable>
+        )}
       </View>
     </KeyboardAvoidingView>
   )
@@ -392,5 +398,10 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     backgroundColor: colors.accent,
+  },
+  stopButton: {
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.border,
+    borderWidth: 1,
   },
 })

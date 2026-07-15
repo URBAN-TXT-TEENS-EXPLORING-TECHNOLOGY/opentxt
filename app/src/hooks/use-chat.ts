@@ -35,6 +35,7 @@ export function useChat(initialChatId: string | undefined) {
   const [state, setState] = useState<ChatState>(EMPTY)
   // Guards against a stale stream writing into a newer conversation.
   const generation = useRef(0)
+  const aborter = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const gen = ++generation.current
@@ -102,6 +103,8 @@ export function useChat(initialChatId: string | undefined) {
         }))
       }
 
+      const controller = new AbortController()
+      aborter.current = controller
       try {
         const input = {
           message,
@@ -109,7 +112,7 @@ export function useChat(initialChatId: string | undefined) {
           ...(attachments.length > 0 ? { attachments: attachments.map((a) => a.id) } : {}),
           ...(options?.model !== undefined ? { model: options.model } : {}),
         }
-        for await (const event of streamChat(token, input)) {
+        for await (const event of streamChat(token, input, controller.signal)) {
           if (generation.current !== gen) return
           switch (event.type) {
             case "chat":
@@ -129,10 +132,13 @@ export function useChat(initialChatId: string | undefined) {
           }
         }
       } catch (e) {
-        if (generation.current === gen) {
+        // A user-initiated stop is not an error; the server persists the partial.
+        const aborted = controller.signal.aborted
+        if (generation.current === gen && !aborted) {
           setState((s) => ({ ...s, error: e instanceof Error ? e.message : String(e) }))
         }
       } finally {
+        aborter.current = null
         if (generation.current === gen) {
           setState((s) => ({ ...s, streaming: false }))
         }
@@ -141,5 +147,10 @@ export function useChat(initialChatId: string | undefined) {
     [state.chatId, token],
   )
 
-  return { ...state, send }
+  /** Stop the in-flight generation (partial text stays; server persists it). */
+  const stop = useCallback(() => {
+    aborter.current?.abort()
+  }, [])
+
+  return { ...state, send, stop }
 }

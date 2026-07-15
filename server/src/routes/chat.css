@@ -145,5 +145,6 @@ body {
   justify-content: center; width: 42px;
 }
 .input-bar button.send { background: var(--accent); color: var(--accent-text); font-weight: 700; }
+.input-bar button.stop { border: 1px solid var(--border); font-size: 13px; }
 .input-bar button:disabled { cursor: default; opacity: .45; }
 .chat-error { color: var(--danger); font-size: 13px; padding: 0 18px 6px; }

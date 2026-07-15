@@ -1,4 +1,5 @@
 import { type JobContext, ServerOptions, cli, defineAgent, voice } from "@livekit/agents"
+import * as google from "@livekit/agents-plugin-google"
 import * as openai from "@livekit/agents-plugin-openai"
 import { fileURLToPath } from "node:url"
 
@@ -25,22 +26,38 @@ const instructions = (history: string): string =>
   "keep responses short and conversational, and avoid unpronounceable punctuation." +
   (history.length > 0 ? ` Previous chat history with this user: ${history}` : "")
 
+/**
+ * Realtime model per provider. The server's /api/voice/livekit route bakes a
+ * validated `voiceProvider` into the participant token attributes; unknown or
+ * absent values fall back to OpenAI.
+ *
+ * Gemini: pinned to gemini-2.5-flash-native-audio (NOT 3.1-flash-live) until
+ * livekit/agents-js#1197 lands — generateReply()/say() break on 3.1's
+ * continuation semantics. See opentxt/docs/VOICE.md. Requires GOOGLE_API_KEY.
+ */
+const realtimeModel = (provider: string) =>
+  provider === "google"
+    ? new google.realtime.RealtimeModel({
+        model:
+          process.env["GOOGLE_REALTIME_MODEL"] ?? "gemini-2.5-flash-native-audio-preview-12-2025",
+      })
+    : // Model + voice pinned EXPLICITLY to the same defaults as the server's
+      // direct-Realtime mode, so both voice paths behave identically and a
+      // plugin default bump can't silently diverge them.
+      new openai.realtime.RealtimeModel({
+        model: process.env["OPENAI_REALTIME_MODEL"] ?? "gpt-realtime",
+        voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
+      })
+
 export default defineAgent({
   entry: async (ctx: JobContext) => {
     await ctx.connect()
     const participant = await ctx.waitForParticipant()
     const history = participant.attributes["historyMessages"] ?? ""
+    const provider = participant.attributes["voiceProvider"] ?? "openai"
 
     const agent = new voice.Agent({ instructions: instructions(history) })
-    const session = new voice.AgentSession({
-      // Model + voice pinned EXPLICITLY to the same defaults as the server's
-      // direct-Realtime mode, so both voice paths behave identically and a
-      // plugin default bump can't silently diverge them.
-      llm: new openai.realtime.RealtimeModel({
-        model: process.env["OPENAI_REALTIME_MODEL"] ?? "gpt-realtime",
-        voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
-      }),
-    })
+    const session = new voice.AgentSession({ llm: realtimeModel(provider) })
 
     await session.start({ agent, room: ctx.room })
     session.say("Hey! How can I help?")

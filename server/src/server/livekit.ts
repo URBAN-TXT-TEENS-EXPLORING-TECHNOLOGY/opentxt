@@ -34,6 +34,7 @@ export class LiveKitVoice extends Context.Service<LiveKitVoice>()("opentxt/LiveK
     connectionDetails: (
       userId: string,
       historyMessages: string,
+      voiceProvider: "openai" | "google" = "openai",
     ): Effect.Effect<ConnectionDetails, LiveKitError> =>
       Effect.gen(function* () {
         const cfg = yield* LiveKitConfig.pipe(
@@ -46,7 +47,9 @@ export class LiveKitVoice extends Context.Service<LiveKitVoice>()("opentxt/LiveK
             const at = new AccessToken(cfg.apiKey, Redacted.value(cfg.apiSecret), {
               identity: participantName,
               ttl: "15m",
-              attributes: { historyMessages },
+              // The agent worker reads both: history seeds instructions,
+              // voiceProvider picks the realtime model (openai | google).
+              attributes: { historyMessages, voiceProvider },
             })
             // Narrow grant: audio-only voice flow — no data publishing.
             at.addGrant({

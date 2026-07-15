@@ -10,6 +10,8 @@ import { runtime } from "~/server/runtime"
 const VoiceRequest = Schema.Struct({
   /** Chat to carry into the voice session. History is serialized SERVER-side. */
   chatId: Schema.optionalKey(Schema.String),
+  /** Realtime model backend for the agent; validated against the closed set. */
+  provider: Schema.optionalKey(Schema.Literals(["openai", "google"])),
 })
 
 /**
@@ -37,7 +39,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       }
 
       const lk = yield* LiveKitVoice
-      const details = yield* lk.connectionDetails(user.userId, history)
+      const details = yield* lk.connectionDetails(user.userId, history, input.provider ?? "openai")
       return json(details)
     }).pipe(
       Effect.catchTag("RateLimited", (e) => Effect.succeed(tooManyRequests(e.retryAfterMs))),

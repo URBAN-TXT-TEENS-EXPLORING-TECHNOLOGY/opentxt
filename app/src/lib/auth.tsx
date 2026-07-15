@@ -12,6 +12,7 @@ type AuthState = {
   user: User | null
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
+  signInAsGuest: () => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -65,6 +66,11 @@ export function AuthProvider(props: { children: ReactNode }) {
     [persist],
   )
 
+  const signInAsGuest = useCallback(async () => {
+    const res = await api.guest()
+    await persist(res.token, res.user)
+  }, [persist])
+
   const signOut = useCallback(async () => {
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
@@ -75,8 +81,8 @@ export function AuthProvider(props: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ ready, token, user, signIn, signUp, signOut }),
-    [ready, token, user, signIn, signUp, signOut],
+    () => ({ ready, token, user, signIn, signUp, signInAsGuest, signOut }),
+    [ready, token, user, signIn, signUp, signInAsGuest, signOut],
   )
 
   return <AuthContext.Provider value={value}>{props.children}</AuthContext.Provider>
