@@ -35,19 +35,25 @@ const instructions = (history: string): string =>
  * livekit/agents-js#1197 lands — generateReply()/say() break on 3.1's
  * continuation semantics. See opentxt/docs/VOICE.md. Requires GOOGLE_API_KEY.
  */
-const realtimeModel = (provider: string) =>
-  provider === "google"
-    ? new google.realtime.RealtimeModel({
-        model:
-          process.env["GOOGLE_REALTIME_MODEL"] ?? "gemini-2.5-flash-native-audio-preview-12-2025",
-      })
-    : // Model + voice pinned EXPLICITLY to the same defaults as the server's
-      // direct-Realtime mode, so both voice paths behave identically and a
-      // plugin default bump can't silently diverge them.
-      new openai.realtime.RealtimeModel({
-        model: process.env["OPENAI_REALTIME_MODEL"] ?? "gpt-realtime",
-        voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
-      })
+const realtimeModel = (provider: string) => {
+  if (provider === "google") {
+    // The plugin's default env var is GOOGLE_API_KEY; we also accept
+    // GEMINI_API_KEY (the name Google AI Studio hands out).
+    const apiKey = process.env["GOOGLE_API_KEY"] ?? process.env["GEMINI_API_KEY"]
+    return new google.realtime.RealtimeModel({
+      model:
+        process.env["GOOGLE_REALTIME_MODEL"] ?? "gemini-2.5-flash-native-audio-preview-12-2025",
+      ...(apiKey !== undefined ? { apiKey } : {}),
+    })
+  }
+  // Model + voice pinned EXPLICITLY to the same defaults as the server's
+  // direct-Realtime mode, so both voice paths behave identically and a
+  // plugin default bump can't silently diverge them.
+  return new openai.realtime.RealtimeModel({
+    model: process.env["OPENAI_REALTIME_MODEL"] ?? "gpt-realtime-2.1",
+    voice: process.env["OPENAI_REALTIME_VOICE"] ?? "marin",
+  })
+}
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
@@ -60,7 +66,14 @@ export default defineAgent({
     const session = new voice.AgentSession({ llm: realtimeModel(provider) })
 
     await session.start({ agent, room: ctx.room })
-    session.say("Hey! How can I help?")
+    if (provider === "google") {
+      // Gemini Live has no TTS side-channel, so a text `say()` throws
+      // ("trying to generate speech from text without a TTS model" —
+      // observed live). Generate the greeting through the model instead.
+      session.generateReply({ instructions: "Greet the user briefly and ask how you can help." })
+    } else {
+      session.say("Hey! How can I help?")
+    }
   },
 })
 

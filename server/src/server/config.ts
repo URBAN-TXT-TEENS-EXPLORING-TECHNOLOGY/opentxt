@@ -32,7 +32,11 @@ export const OpenAiConfig = Config.all({
     Config.withDefault("gpt-4.1-mini,gpt-4.1"),
   ),
   sttModel: Config.string("OPENAI_STT_MODEL").pipe(Config.withDefault("whisper-1")),
-  realtimeModel: Config.string("OPENAI_REALTIME_MODEL").pipe(Config.withDefault("gpt-realtime")),
+  // gpt-realtime-2.1 is OpenAI's current recommended voice-agent model
+  // (GPT-5-class reasoning, 128k ctx, better interruption handling).
+  realtimeModel: Config.string("OPENAI_REALTIME_MODEL").pipe(
+    Config.withDefault("gpt-realtime-2.1"),
+  ),
   realtimeVoice: Config.string("OPENAI_REALTIME_VOICE").pipe(Config.withDefault("marin")),
 })
 

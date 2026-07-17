@@ -41,6 +41,12 @@ export class OpenAiRealtime extends Context.Service<OpenAiRealtime>()("opentxt/O
                     type: "realtime",
                     model: cfg.realtimeModel,
                     instructions,
+                    // Docs-recommended default for Realtime-2-class voice
+                    // agents (verified accepted live); reasoning doesn't
+                    // exist on pre-2 models, so gate on the model name.
+                    ...(cfg.realtimeModel.startsWith("gpt-realtime-2")
+                      ? { reasoning: { effort: "low" } }
+                      : {}),
                     audio: { output: { voice: cfg.realtimeVoice } },
                   },
                 }),
