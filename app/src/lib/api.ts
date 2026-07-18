@@ -22,8 +22,13 @@ import { fetch as expoFetch } from "expo/fetch"
  *   3. localhost — last resort (bare simulator with no Metro origin).
  */
 const hostUri = Constants.expoConfig?.hostUri
+// Tunnel origins (*.exp.direct) must be https: iOS ATS blocks cleartext to
+// internet domains (observed on-device). Local origins stay http (ATS
+// exempts local networking in dev builds).
+const originFor = (host: string): string =>
+  host.includes(".exp.direct") ? `https://${host.replace(/:\d+$/, "")}` : `http://${host}`
 export const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? (hostUri !== undefined ? `http://${hostUri}` : "http://localhost:3000")
+  process.env.EXPO_PUBLIC_API_URL ?? (hostUri !== undefined ? originFor(hostUri) : "http://localhost:3000")
 
 export class ApiError extends Error {
   constructor(
