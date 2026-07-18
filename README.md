@@ -101,7 +101,7 @@ pnpm dev               # builds + registers the worker against your LiveKit proj
 
 ```bash
 cd app
-npm install --legacy-peer-deps   # @config-plugins/react-native-webrtc still declares expo@^56
+pnpm install   # .npmrc: node-linker=hoisted (Metro needs flat node_modules) + Expo min-release-age excludes
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo run:ios   # dev build (not Expo Go)
 ```
 
