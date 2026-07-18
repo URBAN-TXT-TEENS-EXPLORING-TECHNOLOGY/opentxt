@@ -16,7 +16,8 @@
         ]
       },
       "bitcode": false,
-      "bundleIdentifier": "com.taptapcreative.opentxt"
+      "bundleIdentifier": "com.taptapcreative.opentxt",
+      "appleTeamId": "THRN2A465Z"
     },
     "android": {
       "adaptiveIcon": {
