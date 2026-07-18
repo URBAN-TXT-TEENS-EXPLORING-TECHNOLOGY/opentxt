@@ -15,7 +15,10 @@ export default defineConfig({
   ],
   server: {
     // Keep the dev server on 3000 (Vite defaults to 5173) so the Expo app's
-    // default EXPO_PUBLIC_API_URL and the docs agree.
+    // default EXPO_PUBLIC_API_URL and the docs agree. `host: true` binds all
+    // interfaces so a phone on the same LAN can reach the API during
+    // development (the production node-server build already listens on [::]).
+    host: true,
     port: 3000,
   },
 })

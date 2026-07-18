@@ -101,9 +101,20 @@ pnpm dev               # builds + registers the worker against your LiveKit proj
 
 ```bash
 cd app
-pnpm install   # .npmrc: node-linker=hoisted (Metro needs flat node_modules) + Expo min-release-age excludes
-EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo run:ios   # dev build (not Expo Go)
+pnpm install    # .npmrc: node-linker=hoisted (Metro needs flat node_modules) + Expo min-release-age excludes
+npx expo run:ios                 # dev build (not Expo Go); add --device to target a phone
 ```
+
+No API URL configuration needed in development: the app derives its base URL
+from wherever the JS bundle came from, and Metro reverse-proxies `/api` and
+`/m` to the server on localhost:3000 (`metro.config.js`). If the phone can
+load the bundle, it can reach the API — one origin, one connection.
+
+- Phone can't reach Metro (corporate Wi-Fi, macOS firewall blocking node,
+  separate networks)? `npx expo start --tunnel` — everything, API included,
+  rides the tunnel. No machine configuration.
+- Production builds set `EXPO_PUBLIC_API_URL` to the deployed server origin
+  (no Metro in production).
 
 ## SSE protocol (`POST /api/chat`)
 

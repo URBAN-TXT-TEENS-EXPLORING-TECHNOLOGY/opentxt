@@ -1,3 +1,4 @@
+import Constants from "expo-constants"
 import { Option, Schema } from "effect"
 import { fetch as expoFetch } from "expo/fetch"
 
@@ -10,7 +11,19 @@ import { fetch as expoFetch } from "expo/fetch"
  * work properly).
  */
 
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000"
+/**
+ * API base URL resolution, most-specific first:
+ *   1. EXPO_PUBLIC_API_URL — explicit override (production builds).
+ *   2. The origin the JS bundle came from (`hostUri`) — in dev, Metro
+ *      reverse-proxies /api and /m to the local server (metro.config.js),
+ *      so whatever transport delivered the bundle (LAN, USB, `--tunnel`)
+ *      carries the API too. Works on simulators AND physical devices with
+ *      zero configuration.
+ *   3. localhost — last resort (bare simulator with no Metro origin).
+ */
+const hostUri = Constants.expoConfig?.hostUri
+export const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? (hostUri !== undefined ? `http://${hostUri}` : "http://localhost:3000")
 
 export class ApiError extends Error {
   constructor(
