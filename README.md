@@ -68,12 +68,17 @@ opentxt/
 
 ## Running it
 
-### server
+```bash
+pnpm install -C server && pnpm install -C app && pnpm install   # once
+cp server/.env.example server/.env                              # AUTH_SECRET + OPENAI_API_KEY required
+pnpm dev            # ONE command: API server (:3000) + Metro (:8081) together
+pnpm dev:tunnel     # same, but Metro tunnels — for hotspots/firewalls/other networks
+```
+
+### server (individually)
 
 ```bash
 cd server
-pnpm install
-cp .env.example .env   # AUTH_SECRET + OPENAI_API_KEY required; LIVEKIT_* only for voice
 pnpm dev               # http://localhost:3000
 pnpm test && pnpm typecheck
 ```
@@ -110,9 +115,12 @@ from wherever the JS bundle came from, and Metro reverse-proxies `/api` and
 `/m` to the server on localhost:3000 (`metro.config.js`). If the phone can
 load the bundle, it can reach the API — one origin, one connection.
 
-- Phone can't reach Metro (corporate Wi-Fi, macOS firewall blocking node,
-  separate networks)? `npx expo start --tunnel` — everything, API included,
-  rides the tunnel. No machine configuration.
+On a physical device the flow is: `pnpm dev` (or `pnpm dev:tunnel` when the
+phone can't reach the Mac directly — hotspots, corporate Wi-Fi, macOS
+firewall), then open opentxt on the phone — expo-dev-client shows a launcher
+listing your running Metro (or scan the QR from the terminal). Everything,
+API included, rides that one connection.
+
 - Production builds set `EXPO_PUBLIC_API_URL` to the deployed server origin
   (no Metro in production).
 

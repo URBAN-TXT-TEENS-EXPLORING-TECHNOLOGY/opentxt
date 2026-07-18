@@ -1,0 +1,15 @@
+{
+  "name": "opentxt",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,metro -c blue,magenta \"pnpm -C server dev\" \"pnpm -C app start\"",
+    "dev:tunnel": "concurrently -n api,metro -c blue,magenta \"pnpm -C server dev\" \"pnpm -C app start:tunnel\"",
+    "agent": "pnpm -C agent dev",
+    "test": "pnpm -C server test",
+    "typecheck": "pnpm -C server typecheck && pnpm -C agent typecheck && pnpm -C app typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "packageManager": "pnpm@10.17.1"
+}
