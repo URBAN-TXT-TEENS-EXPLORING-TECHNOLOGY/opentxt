@@ -18,9 +18,7 @@
           "NSAllowsLocalNetworking": true
         }
       },
-      "bitcode": false,
-      "bundleIdentifier": "com.taptapcreative.opentxt",
-      "appleTeamId": "THRN2A465Z"
+      "bundleIdentifier": "chat.opentxt.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -41,7 +39,8 @@
         "android.permission.WAKE_LOCK",
         "android.permission.BLUETOOTH"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "chat.opentxt.app"
     },
     "web": {
       "output": "static",

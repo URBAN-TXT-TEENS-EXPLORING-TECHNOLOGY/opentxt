@@ -139,6 +139,16 @@ data: {"type":"error","message":"…"}  terminal on failure
 `GET /m/:id` · `POST /api/stt` (Whisper) · `POST /api/voice/livekit` ·
 `POST /api/voice/realtime`.
 
+## Forking?
+
+The app ships with the official identifiers (`chat.opentxt.app` for both iOS
+and Android in `app/app.json`). If you distribute your own build — or install
+yours on a device that also has the official app — change them to your own
+reverse-DNS id; bundle identifiers are unique per Apple team, and two teams'
+builds of the same id refuse to coexist on one device (see the error-3002
+field note below). Signing teams are picked locally by Xcode and are
+deliberately not committed.
+
 ## Developing on a real phone
 
 `npx expo run:ios --device` once (the dev client includes a launcher), then
