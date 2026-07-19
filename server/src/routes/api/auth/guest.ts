@@ -8,8 +8,8 @@ import { clientAddress, RateLimit } from "~/server/rate-limit"
 import { runtime } from "~/server/runtime"
 
 /**
- * Guest sign-in: mint a throwaway account + token in one tap (the original
- * repo's guest flow, without NextAuth). The account is a normal user row with
+ * Guest sign-in: mint a throwaway account + token in one tap, so nobody has
+ * to invent an email to try the app. The account is a normal user row with
  * an unguessable local-only address; signing out simply orphans it. The
  * random password is never returned — a guest session can't be re-entered,
  * only replaced.

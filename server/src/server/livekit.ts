@@ -20,8 +20,8 @@ export type ConnectionDetails = typeof ConnectionDetails.Type
  * LiveKit room-token minting. Each voice session gets a fresh random room and
  * a 15-minute participant token. The current text-chat history rides along in
  * the participant `attributes` (`historyMessages`) — the agent worker reads it
- * to seed the Realtime model's instructions, same context bridge the original
- * Python agent used.
+ * to seed the Realtime model's instructions, so the voice session remembers
+ * the text conversation without any extra round-trip.
  */
 export class LiveKitVoice extends Context.Service<LiveKitVoice>()("opentxt/LiveKitVoice", {
   make: Effect.succeed({

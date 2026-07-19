@@ -23,10 +23,11 @@ const TOKEN_TTL = "7d"
 const SCRYPT_KEYLEN = 64
 
 /**
- * Auth service: scrypt password hashing + jose HS256 JWTs. This replaces the
- * original repo's THREE auth systems (NextAuth sessions for web, a parallel
- * hand-rolled JWT path for mobile, and User-Agent sniffing middleware to pick
- * between them) with ONE explicit Bearer-token scheme for every client.
+ * Auth service: scrypt password hashing + jose HS256 JWTs. Deliberately ONE
+ * explicit Bearer-token scheme for every client — cross-platform chat apps
+ * commonly grow a split brain here (cookie sessions for web, a parallel JWT
+ * path for mobile, User-Agent sniffing middleware to pick between them);
+ * explicit beats sniffed.
  */
 export class Auth extends Context.Service<Auth>()("opentxt/Auth", {
   make: Effect.gen(function* () {

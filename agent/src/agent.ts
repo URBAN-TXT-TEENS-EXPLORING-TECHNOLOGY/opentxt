@@ -4,16 +4,14 @@ import * as openai from "@livekit/agents-plugin-openai"
 import { fileURLToPath } from "node:url"
 
 /**
- * The LiveKit voice agent — the TypeScript replacement for the original
- * Python `livekit-voice-agent` (Deepgram STT -> gpt-4o-mini -> Cartesia TTS
- * -> Silero VAD -> turn detector). The OpenAI Realtime model (GA
- * `gpt-realtime`) collapses that whole pipeline into one speech-to-speech
- * session: no separate STT/TTS vendors, built-in turn detection.
+ * The LiveKit voice agent. A classic voice pipeline chains four vendors —
+ * STT -> LLM -> TTS -> VAD/turn detection; a speech-to-speech Realtime model
+ * collapses all of it into one session: no separate STT/TTS, built-in turn
+ * detection, one socket.
  *
  * Context bridge: the server (`/api/voice/livekit`) bakes the user's current
  * text-chat history into the participant token's `attributes.historyMessages`;
- * we read it off the first participant and seed the session instructions —
- * the same mechanism the Python agent used.
+ * we read it off the first participant and seed the session instructions.
  *
  * NOTE: this worker is deliberately NOT wrapped in Effect — `cli.runApp`
  * owns the process lifecycle (worker pool, job dispatch, signals), so an
