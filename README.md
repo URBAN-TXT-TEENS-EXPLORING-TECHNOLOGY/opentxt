@@ -195,14 +195,6 @@ Lessons paid for in debugging time, kept here so you don't pay twice:
   `-sTCP:LISTEN`, or you'll murder the process that was merely *talking* to
   the port. (Ask us how we know.)
 
-## Non-goals (so far)
-
-Editors-in-chat (artifacts/documents/suggestions), message voting, resumable
-mid-flight streams (the finalizer already guarantees no data loss on
-disconnect — resuming a *live* stream is machinery waiting for demand), and
-third-party memory services. The scope is a complete, verifiable core — not a
-feature checklist.
-
 ## Verification culture
 
 Nothing in this README is aspirational: the stream lifecycle was proven
