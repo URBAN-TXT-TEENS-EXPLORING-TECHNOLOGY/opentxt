@@ -66,14 +66,12 @@ export default defineAgent({
     const session = new voice.AgentSession({ llm: realtimeModel(provider) })
 
     await session.start({ agent, room: ctx.room })
-    if (provider === "google") {
-      // Gemini Live has no TTS side-channel, so a text `say()` throws
-      // ("trying to generate speech from text without a TTS model" —
-      // observed live). Generate the greeting through the model instead.
-      session.generateReply({ instructions: "Greet the user briefly and ask how you can help." })
-    } else {
-      session.say("Hey! How can I help?")
-    }
+    // Greet via the model, NOT session.say(): a text say() needs a TTS
+    // side-channel that speech-to-speech models don't have — it throws
+    // "trying to generate speech from text without a TTS model" on BOTH
+    // Gemini Live and gpt-realtime-2.x (each observed live; 2.1 crashed the
+    // job right after joining, which the app saw as an endless "connecting").
+    session.generateReply({ instructions: "Greet the user briefly and ask how you can help." })
   },
 })
 
