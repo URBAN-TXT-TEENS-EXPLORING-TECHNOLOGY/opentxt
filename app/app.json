@@ -13,7 +13,10 @@
         "NSMicrophoneUsageDescription": "opentxt uses the microphone for voice conversations and voice input.",
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       },
       "bitcode": false,
       "bundleIdentifier": "com.taptapcreative.opentxt",
